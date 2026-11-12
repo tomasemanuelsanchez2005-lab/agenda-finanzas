@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Agenda y Finanzas V1.0</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <div class="container">
+        <h1> Mis Finanzas Personales</h1>
+        <p>Controla tus ingresos, gastos, inversiones y vencimientos mensuales.</p>
+
+        <div class="resumen-container">
+            <div class="card-resumen card-ingresos">
+                <span class="titulo-resumen">Ingresos {% if mes_seleccionado %}({{ mes_seleccionado }}){% endif %}</span>
+                <span class="monto-resumen">+ ${{ "%.2f"|format(ingresos) }}</span>
+            </div>
+            <div class="card-resumen card-gastos">
+                <span class="titulo-resumen">Gastos {% if mes_seleccionado %}({{ mes_seleccionado }}){% endif %}</span>
+                <span class="monto-resumen">- ${{ "%.2f"|format(gastos) }}</span>
+            </div>
+            <div class="card-resumen card-inversiones">
+                <span class="titulo-resumen">Invertido {% if mes_seleccionado %}({{ mes_seleccionado }}){% endif %}</span>
+                <span class="monto-resumen">${{ "%.2f"|format(inversiones) }}</span>
+            </div>
+            <div class="card-resumen card-saldo">
+                <span class="titulo-resumen">Balance Disponible</span>
+                <span class="monto-resumen">${{ "%.2f"|format(saldo) }}</span>
+            </div>
+        </div>
+
+        <div class="billeteras-container">
+            <h3>💳 Saldo Real en Cuentas / Billeteras</h3>
+            <div class="billeteras-grid">
+                {% for medio, monto_medio in saldos_por_medio.items() %}
+                <div class="card-billetera">
+                    <span class="nombre-billetera">{{ medio }}</span>
+                    <span class="monto-billetera {% if monto_medio < 0 %}negativo{% endif %}">
+                        ${{ "%.2f"|format(monto_medio) }}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="agenda-container">
+            <div class="agenda-header">
+                <h3> Agenda de Gastos Fijos (Mes actual: {{ mes_actual }})</h3>
+            </div>
+
+            {% if gastos_fijos %}
+            <div class="gastos-fijos-grid">
+                {% for gf in gastos_fijos %}
+                    {% set pagado_este_mes = (gf.ultimo_mes_pagado == mes_actual) %}
+                    {% set vencido_o_hoy = (not pagado_este_mes and gf.dia_vencimiento <= dia_hoy) %}
+
+                    <div class="card-fijo {% if pagado_este_mes %}fijo-pagado{% elif vencido_o_hoy %}fijo-urgente{% else %}fijo-pendiente{% endif %}">
+                        <div class="fijo-info">
+                            <div class="fijo-titulo-row">
+                                <strong>{{ gf.nombre }}</strong>
+                                <a href="{{ url_for('borrar_gasto_fijo', gasto_fijo_id=gf.gasto_fijo_id) }}" 
+                                   class="btn-borrar-fijo" 
+                                   title="Eliminar este recordatorio fijo"
+                                   onclick="return confirm('¿Dejar de recordar este gasto fijo mensual?');">✖</a>
+                            </div>
+                            <span class="fijo-meta">
+                                Vence el día <strong>{{ gf.dia_vencimiento }}</strong> de cada mes • {{ gf.categoria }}
+                            </span>
+                            
+                            {% if pagado_este_mes %}
+                                <span class="badge-estado estado-ok">✅ Pagado en {{ mes_actual }} (${{ "%.2f"|format(gf.monto_estimado) }})</span>
+                            {% elif vencido_o_hoy %}
+                                <span class="badge-estado estado-alerta">⚠️ Vence hoy o vencido (Día {{ gf.dia_vencimiento }})</span>
+                            {% else %}
+                                <span class="badge-estado estado-espera">⏳ Pendiente para este mes</span>
+                            {% endif %}
+                        </div>
+
+                        {% if not pagado_este_mes %}
+                        <form action="{{ url_for('pagar_gasto_fijo', gasto_fijo_id=gf.gasto_fijo_id) }}" method="POST" class="form-pagar-fijo">
+                            <input type="hidden" name="nombre_fijo" value="{{ gf.nombre }}">
+                            <input type="hidden" name="categoria_id" value="{{ gf.categoria_id }}">
+                            
+                            <div class="fijo-inputs">
+                                <input type="number" step="0.01" name="monto_real" value="{{ gf.monto_estimado }}" class="input-fijo-monto" title="Monto final abonado" required>
+                                <select name="medio_pago_id" class="select-fijo-mp" required>
+                                    <option value="0">Sin medio (0)</option>
+                                    {% for mp in medios_pago %}
+                                        <option value="{{ mp.medio_pago_id }}">{{ mp.nombre }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn-pagar-fijo">✅ Pagar</button>
+                            </div>
+                        </form>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+            {% else %}
+                <p class="sin-datos">No tienes gastos fijos configurados todavía.</p>
+            {% endif %}
+
+            <details class="acordeon-nuevo-fijo">
+                <summary>➕ Agregar nuevo gasto fijo a mi agenda mensual</summary>
+                <form action="{{ url_for('nuevo_gasto_fijo') }}" method="POST" class="form-nuevo-fijo">
+                    <div class="fijo-form-grid">
+                        <div>
+                            <label>Servicio / Compromiso:</label>
+                            <input type="text" name="nombre_fijo" placeholder="Ej: Gimnasio, Netflix, Alquiler" required>
+                        </div>
+                        <div>
+                            <label>Monto Estimado ($):</label>
+                            <input type="number" step="0.01" name="monto_fijo" placeholder="Ej: 15000" required>
+                        </div>
+                        <div>
+                            <label>Día de Vencimiento (1 al 31):</label>
+                            <input type="number" min="1" max="31" name="dia_vencimiento" value="5" required>
+                        </div>
+                        <div>
+                            <label>Categoría:</label>
+                            <select name="categoria_fijo">
+                                <option value="0" selected>Sin categoría (Default 0)</option>
+                                {% for c in categorias %}
+                                    <option value="{{ c.categoria_id }}">{{ c.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-guardar-fijo">Guardar en Agenda</button>
+                </form>
+            </details>
+        </div>
+
+        <div class="form-container">
+            <h2>Registrar Nuevo Movimiento</h2>
+            <form action="/" method="POST">
+                
+                <div class="form-group">
+                    <label for="tipo">Tipo:</label>
+                    <select name="tipo" id="tipo" required>
+                        <option value="Gasto">Gasto</option>
+                        <option value="Ingreso">Ingreso</option>
+                        <option value="Inversión">Inversión</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="monto">Monto ($):</label>
+                    <input type="number" step="0.01" name="monto" id="monto" placeholder="Ej: 1500.00" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="fecha">Fecha y Hora:</label>
+                    <input type="datetime-local" name="fecha" id="fecha" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="categoria">Categoría:</label>
+                    <select name="categoria" id="categoria">
+                        <option value="0" selected>Sin categoría (Default 0)</option>
+                        {% for c in categorias %}
+                            <option value="{{ c.categoria_id }}">{{ c.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="descripcion">Descripción (Opcional):</label>
+                    <input type="text" name="descripcion" id="descripcion" placeholder="Ej: Alfajor y Coca">
+                </div>
+
+                <div class="form-group">
+                    <label for="metodo_pago">Método de Pago:</label>
+                    <select name="metodo_pago" id="metodo_pago">
+                        <option value="0" selected>Sin especificar (Default 0)</option>
+                        {% for mp in medios_pago %}
+                            <option value="{{ mp.medio_pago_id }}">{{ mp.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <button type="submit" class="btn-guardar">Guardar Movimiento</button>
+            </form>
+        </div>
+
+        <div class="historial-header">
+            <h2>Historial de Movimientos</h2>
+            <form action="/" method="GET" class="filtro-mes-form">
+                <label for="mes">📅 Filtrar por mes:</label>
+                <select name="mes" id="mes" onchange="this.form.submit()">
+                    <option value="">Todos los meses (Histórico)</option>
+                    {% for m_disp in meses_disponibles %}
+                        <option value="{{ m_disp }}" {% if m_disp == mes_seleccionado %}selected{% endif %}>
+                            Período {{ m_disp }}
+                        </option>
+                    {% endfor %}
+                </select>
+                {% if mes_seleccionado %}
+                    <a href="/" class="btn-limpiar-filtro">Ver todos</a>
+                {% endif %}
+            </form>
+        </div>
+
+        {% if movimientos %}
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Tipo</th>
+                            <th>Monto</th>
+                            <th>Fecha y Hora</th>
+                            <th>Categoría</th>
+                            <th>Descripción</th>
+                            <th>Método de Pago</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in movimientos %}
+                        <tr>
+                            <td data-label="ID">{{ m.movimiento_id }}</td>
+                            <td data-label="Tipo">{{ m.tipo }}</td>
+                            <td data-label="Monto">${{ "%.2f"|format(m.monto) }}</td>
+                            <td data-label="Fecha" data-timestamp="{{ m.timestamp_fecha }}">{{ m.fecha_formateada }}</td>
+                            <td data-label="Categoría">{{ m.categoria }}</td>
+                            <td data-label="Descripción">{{ m.descripcion }}</td>
+                            <td data-label="Método de Pago">{{ m.metodo_pago }}</td>
+                            <td data-label="Acciones">
+                                <a href="{{ url_for('eliminar', id_movimiento=m.movimiento_id) }}" class="btn-eliminar" onclick="return confirm('¿Estás seguro de que deseas eliminar este movimiento?');">🗑️ Eliminar</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="sin-datos">No hay movimientos registrados para este período.</p>
+        {% endif %}
+    </div>
+
+</body>
+</html>
