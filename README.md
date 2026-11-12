@@ -1,6 +1,6 @@
 # 💰 Mi Agenda y Finanzas Personales (Versión 1.0 - MVP)
 
-Aplicación web para administrar ingresos, gastos, inversiones y recordar el pago de gastos fijos mensuales. Desarrollada con Python (Flask) y MySQL aplicando las correcciones de arquitectura recomendadas por Claudio.
+Aplicación web para administrar ingresos, gastos, inversiones y recordar el pago de gastos fijos mensuales. Desarrollada con Python (Flask) y MySQL aplicando las correcciones de arquitectura recomendadas por mi sensei
 
 ## 🛠️ Qué incluye esta Primera Versión (V1.0)
 
